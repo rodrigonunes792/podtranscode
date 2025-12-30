@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodTranscode - Pratique Ingles com Podcasts</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+            color: #00d4ff;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Search Section */
+        .search-section {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+
+        .search-input:focus {
+            outline: 2px solid #00d4ff;
+        }
+
+        .btn-search {
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            background: #00d4ff;
+            color: #1a1a2e;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .btn-search:hover {
+            background: #00b8e6;
+            transform: scale(1.05);
+        }
+
+        .btn-search:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Podcast Info */
+        .podcast-info {
+            display: none;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .podcast-info.active {
+            display: flex;
+        }
+
+        .podcast-artwork {
+            width: 100px;
+            height: 100px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .podcast-details h2 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .podcast-details p {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        /* Episodes List */
+        .episodes-section {
+            display: none;
+        }
+
+        .episodes-section.active {
+            display: block;
+        }
+
+        .episodes-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #00d4ff;
+        }
+
+        .episodes-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .episode-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .episode-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .episode-item.cached {
+            border-left: 3px solid #00ff88;
+        }
+
+        .episode-info {
+            flex: 1;
+        }
+
+        .episode-title {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .episode-meta {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .episode-badge {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .badge-cached {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .badge-new {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+        }
+
+        /* Progress */
+        .progress-section {
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .status-text {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Player Section */
+        .player-section {
+            display: none;
+        }
+
+        .player-section.active {
+            display: block;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: #00d4ff;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .back-btn:hover {
+            text-decoration: underline;
+        }
+
+        .text-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .text-box {
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            line-height: 1.6;
+            min-height: 80px;
+            margin-bottom: 20px;
+        }
+
+        .english-box {
+            background: rgba(0, 212, 255, 0.1);
+            border-left: 4px solid #00d4ff;
+        }
+
+        .portuguese-box {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 4px solid #00ff88;
+            color: #90EE90;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .control-select {
+            padding: 8px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-nav {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .btn-nav:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-play {
+            background: #00ff88;
+            color: #1a1a2e;
+            min-width: 100px;
+        }
+
+        .btn-play:hover:not(:disabled) {
+            background: #00e67a;
+        }
+
+        .btn-play.playing {
+            background: #ff4757;
+        }
+
+        .segment-info {
+            text-align: right;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .repeat-status {
+            font-size: 12px;
+            color: #00d4ff;
+        }
+
+        #audioPlayer {
+            display: none;
+        }
+
+        /* Checking Mode */
+        .checking-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 200, 0, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 200, 0, 0.3);
+        }
+
+        .checking-toggle label {
+            font-size: 14px;
+            color: #ffc800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checking-toggle input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checking-section {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .checking-section.active {
+            display: block;
+        }
+
+        .checking-input {
+            width: 100%;
+            padding: 20px;
+            font-size: 18px;
+            line-height: 1.6;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 200, 0, 0.1);
+            border-left: 4px solid #ffc800;
+            color: #fff;
+            resize: vertical;
+            min-height: 80px;
+            margin-bottom: 15px;
+        }
+
+        .checking-input:focus {
+            outline: 2px solid #ffc800;
+        }
+
+        .checking-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-check {
+            background: #ffc800;
+            color: #1a1a2e;
+            padding: 12px 30px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-check:hover {
+            background: #e6b400;
+        }
+
+        .btn-check:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .checking-result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            display: none;
+        }
+
+        .checking-result.active {
+            display: block;
+        }
+
+        .checking-result.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .checking-result.fail {
+            background: rgba(255, 71, 87, 0.2);
+            border: 1px solid #ff4757;
+            color: #ff4757;
+        }
+
+        .checking-result .accuracy {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .checking-result .correction {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .correction-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .correction-text {
+            color: #fff;
+        }
+
+        .text-hidden {
+            display: none !important;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        .episodes-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .episodes-list::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        .episodes-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PodTranscode</h1>
+        <p class="subtitle">Pratique Ingles com Podcasts</p>
+
+        <!-- Search Section -->
+        <div id="searchSection" class="card">
+            <div class="search-section">
+                <input type="text" id="searchInput" class="search-input"
+                       placeholder="Cole a URL do Apple Podcasts ou busque por nome..."
+                       value="https://podcasts.apple.com/br/podcast/achieve-your-goals-with-hal-elrod/id820889267">
+                <button id="searchBtn" class="btn-search" onclick="searchPodcast()">Buscar</button>
+            </div>
+        </div>
+
+        <!-- Podcast Info -->
+        <div id="podcastInfo" class="card podcast-info">
+            <img id="podcastArtwork" class="podcast-artwork" src="" alt="">
+            <div class="podcast-details">
+                <h2 id="podcastName"></h2>
+                <p id="podcastArtist"></p>
+            </div>
+        </div>
+
+        <!-- Episodes List -->
+        <div id="episodesSection" class="card episodes-section">
+            <div class="episodes-title">Episodios Disponiveis</div>
+            <div id="episodesList" class="episodes-list"></div>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressSection" class="card progress-section">
+            <div id="statusText" class="status-text">Processando...</div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- Player Section -->
+        <div id="playerSection" class="card player-section">
+            <button class="back-btn" onclick="backToEpisodes()">← Voltar para episodios</button>
+
+            <!-- Checking Toggle -->
+            <div class="checking-toggle">
+                <label>
+                    <input type="checkbox" id="checkingMode" onchange="toggleCheckingMode()">
+                    Modo Checking - Digite o que entendeu e confira sua precisao
+                </label>
+            </div>
+
+            <!-- Normal Text Display (hidden when checking mode is on) -->
+            <div id="textDisplay">
+                <div class="text-label">
+                    <span>English</span>
+                    <span id="timeRange"></span>
+                </div>
+                <div id="englishText" class="text-box english-box"></div>
+
+                <div class="text-label">
+                    <span>Portugues</span>
+                </div>
+                <div id="portugueseText" class="text-box portuguese-box"></div>
+            </div>
+
+            <!-- Checking Section (shown when checking mode is on) -->
+            <div id="checkingSection" class="checking-section">
+                <div class="text-label">
+                    <span>Digite o que voce entendeu em ingles</span>
+                    <span id="timeRangeChecking"></span>
+                </div>
+                <textarea id="checkingInput" class="checking-input"
+                    placeholder="Ouca o audio e digite aqui o que voce entendeu..."></textarea>
+                <button class="btn-check" onclick="checkAnswer()">Verificar</button>
+
+                <div id="checkingResult" class="checking-result">
+                    <div class="accuracy"></div>
+                    <div class="correction">
+                        <div class="correction-label">Transcricao correta:</div>
+                        <div class="correction-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Repeticoes:</label>
+                    <select id="repeatSelect" class="control-select">
+                        <option value="1">1x</option>
+                        <option value="2">2x</option>
+                        <option value="3" selected>3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                        <option value="6">6x</option>
+                        <option value="7">7x</option>
+                        <option value="8">8x</option>
+                        <option value="9">9x</option>
+                        <option value="10">10x</option>
+                        <option value="11">11x</option>
+                        <option value="12">12x</option>
+                        <option value="13">13x</option>
+                        <option value="14">14x</option>
+                        <option value="15">15x</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Velocidade:</label>
+                    <select id="speedSelect" class="control-select" onchange="changeSpeed()">
+                        <option value="0.5">50%</option>
+                        <option value="0.75">75%</option>
+                        <option value="1" selected>100%</option>
+                    </select>
+                </div>
+
+                <div class="nav-buttons">
+                    <button id="prevBtn" class="btn btn-nav" onclick="prevSegment()" disabled>&lt; Anterior</button>
+                    <button id="playBtn" class="btn btn-play" onclick="togglePlay()" disabled>Play</button>
+                    <button id="nextBtn" class="btn btn-nav" onclick="nextSegment()" disabled>Proxima &gt;</button>
+                </div>
+
+                <div class="segment-info">
+                    <div id="segmentCount">Frase 0 de 0</div>
+                    <div id="repeatStatus" class="repeat-status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer"></audio>
+
+    <script>
+        let segments = [];
+        let currentIndex = 0;
+        let audioPlayer = document.getElementById('audioPlayer');
+        let isPlaying = false;
+        let currentRepeat = 0;
+        let totalRepeats = 3;
+        let playbackTimer = null;
+        let currentEpisodeUrl = null;
+
+        async function searchPodcast() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('Por favor, insira uma URL ou termo de busca');
+                return;
+            }
+
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="spinner"></span>Buscando...';
+
+            try {
+                const response = await fetch('/api/podcast/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+
+                if (data.podcast) {
+                    // Show podcast info
+                    document.getElementById('podcastArtwork').src = data.podcast.artwork;
+                    document.getElementById('podcastName').textContent = data.podcast.name;
+                    document.getElementById('podcastArtist').textContent = data.podcast.artist;
+                    document.getElementById('podcastInfo').classList.add('active');
+
+                    // Show episodes
+                    const episodesList = document.getElementById('episodesList');
+                    episodesList.innerHTML = data.episodes.map(ep => `
+                        <div class="episode-item ${ep.cached ? 'cached' : ''}" onclick="selectEpisode('${ep.url}')">
+                            <div class="episode-info">
+                                <div class="episode-title">${ep.title}</div>
+                                <div class="episode-meta">${ep.date} • ${formatDuration(ep.duration)}</div>
+                            </div>
+                            <span class="episode-badge ${ep.cached ? 'badge-cached' : 'badge-new'}">
+                                ${ep.cached ? 'Em cache' : 'Novo'}
+                            </span>
+                        </div>
+                    `).join('');
+
+                    document.getElementById('episodesSection').classList.add('active');
+                } else if (data.podcasts) {
+                    alert('Por favor, use a URL completa do Apple Podcasts');
+                } else {
+                    alert('Nenhum resultado encontrado');
+                }
+
+            } catch (error) {
+                alert('Erro: ' + error.message);
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Buscar';
+            }
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}min`;
+        }
+
+        async function selectEpisode(url) {
+            currentEpisodeUrl = url;
+
+            document.getElementById('episodesSection').classList.remove('active');
+            document.getElementById('progressSection').classList.add('active');
+
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'cached') {
+                    // Load from cache
+                    await loadCachedEpisode(data.episode_id);
+                } else {
+                    // Poll for status
+                    pollStatus();
+                }
+
+            } catch (error) {
+                alert('Erro: ' + error.message);
+                backToEpisodes();
+            }
+        }
+
+        async function loadCachedEpisode(episodeId) {
+            document.getElementById('statusText').textContent = 'Carregando do cache...';
+            document.getElementById('progressFill').style.width = '50%';
+
+            const response = await fetch(`/api/cache/${episodeId}`);
+            const data = await response.json();
+
+            if (data.segments) {
+                segments = data.segments;
+                currentIndex = 0;
+
+                // Need to re-download audio
+                document.getElementById('statusText').textContent = 'Baixando audio...';
+
+                // Start processing to get audio
+                await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: currentEpisodeUrl })
+                });
+
+                // Wait a bit for audio download
+                setTimeout(async () => {
+                    audioPlayer.src = '/api/audio';
+                    showPlayer();
+                }, 2000);
+            }
+        }
+
+        async function pollStatus() {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+
+            document.getElementById('statusText').textContent = data.message;
+            document.getElementById('progressFill').style.width = data.progress + '%';
+
+            if (data.is_processing) {
+                setTimeout(pollStatus, 500);
+            } else {
+                if (data.error) {
+                    alert('Erro: ' + data.error);
+                    backToEpisodes();
+                } else if (data.segment_count > 0) {
+                    await loadSegments();
+                }
+            }
+        }
+
+        async function loadSegments() {
+            const response = await fetch('/api/segments');
+            const data = await response.json();
+
+            segments = data.segments;
+            currentIndex = 0;
+
+            audioPlayer.src = '/api/audio';
+            showPlayer();
+        }
+
+        function showPlayer() {
+            document.getElementById('progressSection').classList.remove('active');
+            document.getElementById('playerSection').classList.add('active');
+
+            updateDisplay();
+            enableControls(true);
+        }
+
+        function backToEpisodes() {
+            stopPlayback();
+            document.getElementById('playerSection').classList.remove('active');
+            document.getElementById('progressSection').classList.remove('active');
+            document.getElementById('episodesSection').classList.add('active');
+        }
+
+        function updateDisplay() {
+            if (segments.length === 0) return;
+
+            const segment = segments[currentIndex];
+            document.getElementById('englishText').textContent = segment.text;
+            document.getElementById('portugueseText').textContent = segment.translation;
+            document.getElementById('timeRange').textContent = segment.time_range;
+            document.getElementById('segmentCount').textContent = `Frase ${currentIndex + 1} de ${segments.length}`;
+
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            document.getElementById('nextBtn').disabled = currentIndex === segments.length - 1;
+        }
+
+        function enableControls(enabled) {
+            document.getElementById('playBtn').disabled = !enabled;
+            document.getElementById('prevBtn').disabled = !enabled || currentIndex === 0;
+            document.getElementById('nextBtn').disabled = !enabled || currentIndex === segments.length - 1;
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                stopPlayback();
+            } else {
+                startPlayback();
+            }
+        }
+
+        function startPlayback() {
+            if (segments.length === 0) return;
+
+            const segment = segments[currentIndex];
+            totalRepeats = parseInt(document.getElementById('repeatSelect').value);
+            currentRepeat = 0;
+
+            playSegment(segment);
+        }
+
+        function playSegment(segment) {
+            currentRepeat++;
+            isPlaying = true;
+
+            document.getElementById('playBtn').textContent = 'Stop';
+            document.getElementById('playBtn').classList.add('playing');
+            document.getElementById('repeatStatus').textContent = `Repeticao ${currentRepeat} de ${totalRepeats}`;
+
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            audioPlayer.playbackRate = speed;
+
+            // Add margin for context: 200ms before and after
+            const MARGIN = 0.2; // 200 milliseconds
+            const startTime = Math.max(0, segment.start - MARGIN);
+            const endTime = segment.end + MARGIN;
+
+            audioPlayer.currentTime = startTime;
+            audioPlayer.play();
+
+            const duration = ((endTime - startTime) * 1000) / speed;
+            playbackTimer = setTimeout(() => {
+                audioPlayer.pause();
+
+                if (currentRepeat < totalRepeats && isPlaying) {
+                    setTimeout(() => {
+                        if (isPlaying) {
+                            playSegment(segment);
+                        }
+                    }, 500);
+                } else {
+                    stopPlayback();
+                }
+            }, duration);
+        }
+
+        function changeSpeed() {
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            audioPlayer.playbackRate = speed;
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            audioPlayer.pause();
+
+            if (playbackTimer) {
+                clearTimeout(playbackTimer);
+                playbackTimer = null;
+            }
+
+            document.getElementById('playBtn').textContent = 'Play';
+            document.getElementById('playBtn').classList.remove('playing');
+            document.getElementById('repeatStatus').textContent = '';
+        }
+
+        function prevSegment() {
+            if (currentIndex > 0) {
+                stopPlayback();
+                currentIndex--;
+                updateDisplay();
+                updateCheckingSection();
+                startPlayback();
+            }
+        }
+
+        function nextSegment() {
+            if (currentIndex < segments.length - 1) {
+                stopPlayback();
+                currentIndex++;
+                updateDisplay();
+                updateCheckingSection();
+                startPlayback();
+            }
+        }
+
+        // Checking Mode Functions
+        let isCheckingMode = false;
+
+        function toggleCheckingMode() {
+            isCheckingMode = document.getElementById('checkingMode').checked;
+
+            const textDisplay = document.getElementById('textDisplay');
+            const checkingSection = document.getElementById('checkingSection');
+
+            if (isCheckingMode) {
+                textDisplay.classList.add('text-hidden');
+                checkingSection.classList.add('active');
+                // Update time range in checking section
+                if (segments.length > 0) {
+                    document.getElementById('timeRangeChecking').textContent = segments[currentIndex].time_range;
+                }
+                // Clear previous input and result
+                document.getElementById('checkingInput').value = '';
+                hideCheckingResult();
+            } else {
+                textDisplay.classList.remove('text-hidden');
+                checkingSection.classList.remove('active');
+            }
+        }
+
+        function checkAnswer() {
+            if (segments.length === 0) return;
+
+            const userInput = document.getElementById('checkingInput').value.trim();
+            if (!userInput) {
+                alert('Por favor, digite o que voce entendeu antes de verificar.');
+                return;
+            }
+
+            const correctText = segments[currentIndex].text;
+            const accuracy = calculateSimilarity(userInput, correctText);
+
+            const resultDiv = document.getElementById('checkingResult');
+            const accuracyDiv = resultDiv.querySelector('.accuracy');
+            const correctionText = resultDiv.querySelector('.correction-text');
+
+            accuracyDiv.textContent = `${Math.round(accuracy)}% de precisao`;
+            correctionText.textContent = correctText;
+
+            // Remove previous classes
+            resultDiv.classList.remove('success', 'fail');
+
+            // Add appropriate class based on accuracy
+            if (accuracy >= 80) {
+                resultDiv.classList.add('success');
+                accuracyDiv.textContent += ' - Muito bem!';
+            } else {
+                resultDiv.classList.add('fail');
+                accuracyDiv.textContent += ' - Continue praticando!';
+            }
+
+            resultDiv.classList.add('active');
+        }
+
+        function hideCheckingResult() {
+            const resultDiv = document.getElementById('checkingResult');
+            resultDiv.classList.remove('active', 'success', 'fail');
+        }
+
+        function calculateSimilarity(str1, str2) {
+            // Normalize strings: lowercase, remove punctuation, extra spaces
+            const normalize = (s) => s.toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const s1 = normalize(str1);
+            const s2 = normalize(str2);
+
+            if (s1 === s2) return 100;
+            if (s1.length === 0 || s2.length === 0) return 0;
+
+            // Use Levenshtein distance for similarity
+            const matrix = [];
+
+            for (let i = 0; i <= s1.length; i++) {
+                matrix[i] = [i];
+            }
+
+            for (let j = 0; j <= s2.length; j++) {
+                matrix[0][j] = j;
+            }
+
+            for (let i = 1; i <= s1.length; i++) {
+                for (let j = 1; j <= s2.length; j++) {
+                    if (s1[i - 1] === s2[j - 1]) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1, // substitution
+                            matrix[i][j - 1] + 1,     // insertion
+                            matrix[i - 1][j] + 1      // deletion
+                        );
+                    }
+                }
+            }
+
+            const distance = matrix[s1.length][s2.length];
+            const maxLength = Math.max(s1.length, s2.length);
+            const similarity = ((maxLength - distance) / maxLength) * 100;
+
+            return Math.max(0, similarity);
+        }
+
+        // Update checking section when segment changes
+        function updateCheckingSection() {
+            if (isCheckingMode && segments.length > 0) {
+                document.getElementById('timeRangeChecking').textContent = segments[currentIndex].time_range;
+                document.getElementById('checkingInput').value = '';
+                hideCheckingResult();
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowLeft':
+                    prevSegment();
+                    break;
+                case 'ArrowRight':
+                    nextSegment();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
