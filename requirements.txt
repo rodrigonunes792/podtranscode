@@ -1,6 +1,6 @@
 flask>=3.0.0
 gunicorn>=21.0.0
 yt-dlp>=2023.12.30
-openai-whisper>=20231117
+openai>=1.0.0
 deep-translator>=1.11.4
 pydub>=0.25.1

@@ -1,3 +1,11 @@
+# Ignore cache and downloads (audio files)
+cache/
+downloads/
+
+# Git
+.git/
+.gitignore
+
 # Python
 __pycache__/
 *.py[cod]
@@ -5,17 +13,14 @@ __pycache__/
 *.so
 .Python
 venv/
-ENV/
-
-# Downloads and cache
-downloads/
-*.mp3
-*.wav
+env/
+.env
 
 # IDE
 .vscode/
 .idea/
 *.swp
+*.swo
 
 # OS
 .DS_Store
@@ -23,5 +28,3 @@ Thumbs.db
 
 # Logs
 *.log
-cache/
-*.zip

@@ -1,44 +1,36 @@
 from typing import Callable, List, Optional
+import os
 import re
-import whisper
+from openai import OpenAI
 from models.segment import Segment
 
 
-# Words per segment for easier practice (target: 5-7 words)
-MIN_WORDS_PER_SEGMENT = 5
-MAX_WORDS_PER_SEGMENT = 7
+# Words per segment for easier practice (target: 6-15 words for complete sentences)
+MIN_WORDS_PER_SEGMENT = 6
+MAX_WORDS_PER_SEGMENT = 15
 
 
 class Transcriber:
-    """Transcribes audio using OpenAI Whisper."""
+    """Transcribes audio using OpenAI Whisper API."""
 
-    def __init__(self, model_name: str = "base"):
+    def __init__(self, model_name: str = "whisper-1"):
         """
         Initialize the transcriber.
 
         Args:
-            model_name: Whisper model size. Options: tiny, base, small, medium, large
-                       - tiny: ~39M params, fastest, lowest quality
-                       - base: ~74M params, good balance (recommended)
-                       - small: ~244M params, better quality, slower
-                       - medium: ~769M params, high quality, much slower
-                       - large: ~1550M params, best quality, very slow
+            model_name: Whisper model to use (whisper-1 is the only option for API)
         """
         self.model_name = model_name
-        self.model = None
+        self.client = None
 
-    def load_model(self, progress_callback: Optional[Callable[[float, str], None]] = None):
-        """Load the Whisper model (downloads if not cached)."""
-        if self.model is not None:
-            return
-
-        if progress_callback:
-            progress_callback(0, f"Carregando modelo Whisper ({self.model_name})...")
-
-        self.model = whisper.load_model(self.model_name)
-
-        if progress_callback:
-            progress_callback(100, "Modelo carregado!")
+    def _get_client(self):
+        """Get or create OpenAI client."""
+        if self.client is None:
+            api_key = os.environ.get('OPENAI_API_KEY')
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY environment variable not set")
+            self.client = OpenAI(api_key=api_key)
+        return self.client
 
     def transcribe(
         self,
@@ -47,7 +39,7 @@ class Transcriber:
         progress_callback: Optional[Callable[[float, str], None]] = None
     ) -> List[Segment]:
         """
-        Transcribe audio file to segments with timestamps.
+        Transcribe audio file to segments with timestamps using OpenAI API.
 
         Args:
             audio_path: Path to the audio file
@@ -57,18 +49,38 @@ class Transcriber:
         Returns:
             List of Segment objects with timestamps
         """
-        if self.model is None:
-            self.load_model(progress_callback)
-
         if progress_callback:
-            progress_callback(10, "Transcrevendo audio (isso pode levar alguns minutos)...")
+            progress_callback(10, "Transcribing audio with OpenAI Whisper API...")
 
-        result = self.model.transcribe(
-            audio_path,
-            language=language,
-            verbose=False,
-            word_timestamps=False,
-        )
+        client = self._get_client()
+
+        # OpenAI Whisper API has a 25MB limit, so we may need to split large files
+        file_size = os.path.getsize(audio_path)
+        max_size = 25 * 1024 * 1024  # 25MB
+
+        if file_size > max_size:
+            if progress_callback:
+                progress_callback(15, "Audio file is large, splitting into chunks...")
+            result = self._transcribe_large_file(audio_path, language, progress_callback)
+        else:
+            with open(audio_path, "rb") as audio_file:
+                response = client.audio.transcriptions.create(
+                    model=self.model_name,
+                    file=audio_file,
+                    language=language,
+                    response_format="verbose_json",
+                    timestamp_granularities=["segment"]
+                )
+            result = {
+                'segments': [
+                    {
+                        'start': seg.start,
+                        'end': seg.end,
+                        'text': seg.text
+                    }
+                    for seg in response.segments
+                ] if response.segments else []
+            }
 
         segments = []
         segment_id = 0
@@ -77,6 +89,10 @@ class Transcriber:
             text = seg['text'].strip()
             start = seg['start']
             end = seg['end']
+
+            # Skip non-speech segments (music, applause, etc.)
+            if self._is_non_speech(text):
+                continue
 
             # Split text into smaller parts
             parts = self._split_text(text)
@@ -112,110 +128,253 @@ class Transcriber:
 
             if progress_callback:
                 progress = 10 + (i / len(result['segments'])) * 90
-                progress_callback(progress, f"Processando segmento {i+1}/{len(result['segments'])}")
+                progress_callback(progress, f"Processing segment {i+1}/{len(result['segments'])}")
 
         if progress_callback:
-            progress_callback(100, f"Transcricao concluida! {len(segments)} segmentos encontrados.")
+            progress_callback(100, f"Transcription completed! {len(segments)} segments found.")
 
         return segments
+
+    def _transcribe_large_file(
+        self,
+        audio_path: str,
+        language: str,
+        progress_callback: Optional[Callable[[float, str], None]] = None
+    ) -> dict:
+        """
+        Transcribe a large audio file by splitting it into chunks.
+        Uses pydub to split audio into ~20MB chunks.
+        """
+        from pydub import AudioSegment
+        import tempfile
+
+        client = self._get_client()
+
+        # Load audio
+        audio = AudioSegment.from_file(audio_path)
+
+        # Calculate chunk duration (target ~20MB per chunk for safety margin)
+        # Estimate: MP3 at 128kbps = ~1MB per minute
+        # So ~20 minutes per chunk should be safe
+        chunk_duration_ms = 20 * 60 * 1000  # 20 minutes in milliseconds
+
+        chunks = []
+        for i in range(0, len(audio), chunk_duration_ms):
+            chunk = audio[i:i + chunk_duration_ms]
+            chunks.append((i / 1000.0, chunk))  # Store start time in seconds
+
+        all_segments = []
+
+        for idx, (start_offset, chunk) in enumerate(chunks):
+            if progress_callback:
+                progress = 15 + (idx / len(chunks)) * 50
+                progress_callback(progress, f"Transcribing chunk {idx + 1}/{len(chunks)}...")
+
+            # Export chunk to temp file
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                chunk.export(tmp.name, format='mp3')
+                tmp_path = tmp.name
+
+            try:
+                with open(tmp_path, 'rb') as audio_file:
+                    response = client.audio.transcriptions.create(
+                        model=self.model_name,
+                        file=audio_file,
+                        language=language,
+                        response_format="verbose_json",
+                        timestamp_granularities=["segment"]
+                    )
+
+                # Adjust timestamps for this chunk
+                if response.segments:
+                    for seg in response.segments:
+                        all_segments.append({
+                            'start': seg.start + start_offset,
+                            'end': seg.end + start_offset,
+                            'text': seg.text
+                        })
+            finally:
+                # Clean up temp file
+                os.unlink(tmp_path)
+
+        return {'segments': all_segments}
 
     def _split_text(self, text: str) -> List[str]:
         """
         Split text into smaller parts for easier practice.
-        Target: 5-7 words per segment.
+        Keep sentences as complete as possible (target: 6-15 words).
+        Only split by sentence-ending punctuation.
         """
-        # First split by major punctuation: . ; : ! ?
-        parts = re.split(r'[.;:!?]+', text)
+        # Only split by sentence-ending punctuation: . ! ?
+        # Keep the text more intact for better context
+        parts = re.split(r'(?<=[.!?])\s+', text)
         parts = [p.strip() for p in parts if p.strip()]
 
-        # Then split each part by commas
+        # If no splits occurred, use the original text
+        if len(parts) == 0:
+            parts = [text]
+
+        # Process each part
         result = []
         for part in parts:
-            if ',' in part:
-                sub_parts = [p.strip() for p in part.split(',') if p.strip()]
-                result.extend(sub_parts)
-            else:
-                result.append(part)
-
-        # Split long parts by conjunctions and enforce max words
-        split_parts = []
-        for part in result:
             words = part.split()
-            if len(words) > MAX_WORDS_PER_SEGMENT:
-                # Try to split by conjunctions
-                sub_parts = self._split_by_conjunctions(part)
-                for sub in sub_parts:
-                    sub_words = sub.split()
-                    if len(sub_words) > MAX_WORDS_PER_SEGMENT:
-                        chunks = self._chunk_by_words(sub_words, MAX_WORDS_PER_SEGMENT)
-                        split_parts.extend(chunks)
-                    else:
-                        split_parts.append(sub)
+            word_count = len(words)
+
+            if word_count <= MAX_WORDS_PER_SEGMENT:
+                # Part is within limit, keep as is
+                result.append(part)
             else:
-                split_parts.append(part)
+                # Part is too long, split by commas or conjunctions
+                sub_parts = self._smart_split(part)
+                result.extend(sub_parts)
 
-        # Merge small segments to avoid isolated words (target: 5-7 words)
-        final_parts = []
-        current_part = ""
+        # Merge small segments
+        merged = []
+        current = ""
 
-        for part in split_parts:
+        for part in result:
             part = part.strip()
             if not part:
                 continue
 
-            if not current_part:
-                current_part = part
+            if not current:
+                current = part
             else:
-                combined = current_part + " " + part
+                combined = current + " " + part
                 combined_words = len(combined.split())
 
-                # If combined is within target range, merge
                 if combined_words <= MAX_WORDS_PER_SEGMENT:
-                    current_part = combined
+                    current = combined
                 else:
-                    # Current part is ready, check if it's too small
-                    current_words = len(current_part.split())
-                    if current_words < MIN_WORDS_PER_SEGMENT and combined_words <= MAX_WORDS_PER_SEGMENT + 2:
-                        # Allow slightly longer to avoid tiny segments
-                        current_part = combined
+                    # Only add current if it has enough words
+                    if len(current.split()) >= MIN_WORDS_PER_SEGMENT:
+                        merged.append(current)
+                        current = part
                     else:
-                        final_parts.append(current_part)
-                        current_part = part
+                        # Force merge even if slightly over limit
+                        if combined_words <= MAX_WORDS_PER_SEGMENT + 5:
+                            current = combined
+                        else:
+                            merged.append(current)
+                            current = part
 
-        # Don't forget the last part
-        if current_part:
-            # If last part is too small, merge with previous if possible
-            if len(current_part.split()) < MIN_WORDS_PER_SEGMENT and final_parts:
-                last = final_parts.pop()
-                combined = last + " " + current_part
-                if len(combined.split()) <= MAX_WORDS_PER_SEGMENT + 2:
-                    final_parts.append(combined)
-                else:
-                    final_parts.append(last)
-                    final_parts.append(current_part)
+        if current:
+            # Handle last segment
+            if len(current.split()) < MIN_WORDS_PER_SEGMENT and merged:
+                last = merged.pop()
+                merged.append(last + " " + current)
             else:
-                final_parts.append(current_part)
+                merged.append(current)
 
-        # Clean up
-        final_parts = [p.strip() for p in final_parts if p.strip()]
+        return merged if merged else [text]
 
-        return final_parts if final_parts else [text]
+    def _smart_split(self, text: str) -> List[str]:
+        """Split long text intelligently by commas or natural break points."""
+        words = text.split()
 
-    def _split_by_conjunctions(self, text: str) -> List[str]:
-        """Split text by common conjunctions."""
-        # Pattern to split before conjunctions (keeping the conjunction with the following part)
-        conjunctions = r'\b(and|but|or|so|because|when|if|that|which|where|while|although|though|since|before|after|until|unless)\b'
+        # First try splitting by comma
+        if ',' in text:
+            parts = text.split(',')
+            parts = [p.strip() for p in parts if p.strip()]
 
-        # Split but keep the delimiter with the following part
-        parts = re.split(f'(?={conjunctions})', text, flags=re.IGNORECASE)
-        parts = [p.strip() for p in parts if p.strip()]
+            # Merge small comma-separated parts
+            result = []
+            current = ""
+            for part in parts:
+                if not current:
+                    current = part
+                else:
+                    combined = current + ", " + part
+                    if len(combined.split()) <= MAX_WORDS_PER_SEGMENT:
+                        current = combined
+                    else:
+                        result.append(current)
+                        current = part
+            if current:
+                result.append(current)
 
-        return parts if len(parts) > 1 else [text]
+            # Check if all parts are reasonable size
+            if all(len(p.split()) <= MAX_WORDS_PER_SEGMENT for p in result):
+                return result
 
-    def _chunk_by_words(self, words: List[str], max_words: int) -> List[str]:
-        """Split a list of words into chunks of max_words."""
+        # Fall back to chunking by words if comma split didn't work
         chunks = []
-        for i in range(0, len(words), max_words):
-            chunk = ' '.join(words[i:i + max_words])
+        for i in range(0, len(words), MAX_WORDS_PER_SEGMENT):
+            chunk = ' '.join(words[i:i + MAX_WORDS_PER_SEGMENT])
             chunks.append(chunk)
         return chunks
+
+    def _is_non_speech(self, text: str) -> bool:
+        """
+        Check if text is non-speech content (music, applause, etc.).
+        Whisper outputs various markers for non-speech audio.
+        """
+        if not text or not text.strip():
+            return True
+
+        text_lower = text.lower().strip()
+
+        # Common non-speech markers from Whisper (with and without brackets)
+        non_speech_markers = [
+            # Bracketed markers
+            '[music]', '[música]', '[musica]', '[music playing]',
+            '[applause]', '[aplausos]', '[clapping]',
+            '[laughter]', '[laughing]', '[risadas]', '[risos]',
+            '[silence]', '[silêncio]', '[silencio]',
+            '[inaudible]', '[inaudível]', '[inaudivel]',
+            '[noise]', '[ruído]', '[ruido]', '[background noise]',
+            '[crosstalk]', '[cross talk]',
+            '[foreign]', '[foreign language]', '[speaking foreign language]',
+            '[blank_audio]', '[blank audio]', '[no audio]',
+            '[sounds]', '[sound]', '[sound effect]',
+            '[breathing]', '[respiração]', '[heavy breathing]',
+            '[coughing]', '[tosse]', '[cough]',
+            '[sighing]', '[suspiro]', '[sigh]',
+            '[singing]', '[cantando]',
+            '[humming]',
+            '[phone ringing]', '[bell]',
+            '[door]', '[footsteps]',
+            # Musical symbols
+            '♪', '♫', '🎵', '🎶',
+            # Common Whisper hallucinations for music
+            'thank you.', 'thanks for watching',
+            'please subscribe', 'like and subscribe',
+            'see you next time', 'bye bye',
+        ]
+
+        # Check for markers
+        for marker in non_speech_markers:
+            if marker in text_lower:
+                # If the text is mostly the marker, skip it
+                clean_text = text_lower.replace(marker, '').strip()
+                # Remove punctuation for check
+                clean_text = re.sub(r'[^\w\s]', '', clean_text).strip()
+                if len(clean_text) < 5:
+                    return True
+
+        # Check for bracketed content pattern [anything]
+        bracketed_pattern = r'\[.*?\]'
+        text_without_brackets = re.sub(bracketed_pattern, '', text).strip()
+        if len(text_without_brackets) < 3:
+            return True
+
+        # Check for repeated musical notes or symbols
+        if re.match(r'^[♪♫🎵🎶\s.,!?]+$', text):
+            return True
+
+        # Check for very short repeated words (common in music transcription)
+        words = text_lower.split()
+        if len(words) >= 3:
+            unique_words = set(words)
+            # If more than 70% are the same word, likely music/filler
+            if len(unique_words) == 1 and len(words) >= 4:
+                return True
+
+        # Check for parentheses markers (Music), (Applause), etc.
+        paren_pattern = r'\([^)]*(?:music|applause|laughter|singing|humming)[^)]*\)'
+        if re.search(paren_pattern, text_lower):
+            text_without_parens = re.sub(r'\([^)]*\)', '', text).strip()
+            if len(text_without_parens) < 5:
+                return True
+
+        return False
