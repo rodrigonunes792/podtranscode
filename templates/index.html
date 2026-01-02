@@ -462,6 +462,38 @@
             transition: width 0.3s;
         }
 
+        /* Episode Progress Bar */
+        .episode-progress-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 0 20px;
+        }
+
+        .episode-progress-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .episode-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .episode-progress-text {
+            font-size: 12px;
+            color: #888;
+            min-width: 35px;
+            text-align: right;
+        }
+
         /* Player Section */
         .player-section {
             display: none;
@@ -2839,6 +2871,16 @@
                     <div id="segmentCount">Sentence 0 of 0</div>
                     <div id="repeatStatus" class="repeat-status"></div>
                 </div>
+
+                <!-- Episode Progress Bar -->
+                <div class="episode-progress-container">
+                    <div class="episode-progress-bar">
+                        <div id="episodeProgressFill" class="episode-progress-fill"></div>
+                    </div>
+                    <div class="episode-progress-text">
+                        <span id="episodeProgressPercent">0%</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Transcript Search (hidden - not used) -->
@@ -3528,6 +3570,11 @@
 
             document.getElementById('timeRange').textContent = segment.time_range;
             document.getElementById('segmentCount').textContent = `Sentence ${currentIndex + 1} of ${segments.length}`;
+
+            // Update episode progress bar
+            const progressPercent = segments.length > 0 ? ((currentIndex + 1) / segments.length) * 100 : 0;
+            document.getElementById('episodeProgressFill').style.width = `${progressPercent}%`;
+            document.getElementById('episodeProgressPercent').textContent = `${Math.round(progressPercent)}%`;
 
             document.getElementById('prevBtn').disabled = currentIndex === 0;
             document.getElementById('nextBtn').disabled = currentIndex === segments.length - 1;
