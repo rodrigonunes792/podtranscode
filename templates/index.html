@@ -494,6 +494,36 @@
             text-align: right;
         }
 
+        /* Inline Progress Bar (in text label) */
+        .progress-info-inline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .progress-percent-inline {
+            font-size: 12px;
+            color: #8b5cf6;
+            font-weight: 600;
+            min-width: 30px;
+        }
+
+        .progress-bar-inline {
+            width: 60px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill-inline {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
         /* Player Section */
         .player-section {
             display: none;
@@ -2911,7 +2941,13 @@
                             🎤 Pronunciation
                         </button>
                     </span>
-                    <span id="timeRange"></span>
+                    <span class="progress-info-inline">
+                        <span id="episodeProgressPercentInline" class="progress-percent-inline">0%</span>
+                        <div class="progress-bar-inline">
+                            <div id="episodeProgressFillInline" class="progress-fill-inline"></div>
+                        </div>
+                        <span id="timeRange"></span>
+                    </span>
                 </div>
                 <div id="englishText" class="text-box english-box"></div>
                 <div id="englishPhonetic" class="phonetic-text"></div>
@@ -3575,6 +3611,9 @@
             const progressPercent = segments.length > 0 ? ((currentIndex + 1) / segments.length) * 100 : 0;
             document.getElementById('episodeProgressFill').style.width = `${progressPercent}%`;
             document.getElementById('episodeProgressPercent').textContent = `${Math.round(progressPercent)}%`;
+            // Update inline progress bar
+            document.getElementById('episodeProgressFillInline').style.width = `${progressPercent}%`;
+            document.getElementById('episodeProgressPercentInline').textContent = `${Math.round(progressPercent)}%`;
 
             document.getElementById('prevBtn').disabled = currentIndex === 0;
             document.getElementById('nextBtn').disabled = currentIndex === segments.length - 1;
