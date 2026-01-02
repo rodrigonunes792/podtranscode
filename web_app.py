@@ -47,7 +47,16 @@ processing_status = {
 # Use browser="chrome" only for private/restricted videos
 downloader = PodcastDownloader(browser=None)
 transcriber = Transcriber()
-translator = Translator(source_lang="en", target_lang="pt")
+
+# Translators for different source languages (all translate to Portuguese)
+translators = {
+    'en': Translator(source_lang="en", target_lang="pt"),
+    'es': Translator(source_lang="es", target_lang="pt"),
+}
+
+def get_translator(source_lang):
+    """Get translator for the specified source language."""
+    return translators.get(source_lang, translators['en'])
 
 
 def get_cache_path(episode_id):
@@ -136,7 +145,7 @@ def calculate_difficulty(segments, duration):
         return 'hard'
 
 
-def process_podcast_async(url, episode_id, provided_title=''):
+def process_podcast_async(url, episode_id, provided_title='', language='en'):
     """Process podcast in background thread."""
     global processing_status
 
@@ -144,6 +153,9 @@ def process_podcast_async(url, episode_id, provided_title=''):
     processing_status['error'] = None
     processing_status['segments'] = []
     processing_status['episode_id'] = episode_id
+
+    # Get appropriate translator for the source language
+    translator = get_translator(language)
 
     try:
         # Check cache first
@@ -186,7 +198,7 @@ def process_podcast_async(url, episode_id, provided_title=''):
         update_status(20, "Transcribing (may take a few minutes)...")
         segments = transcriber.transcribe(
             audio_path,
-            language="en",
+            language=language,
             progress_callback=update_status
         )
 
@@ -225,7 +237,8 @@ def process_podcast_async(url, episode_id, provided_title=''):
             'title': title,
             'thumbnail': thumbnail,
             'duration': duration,
-            'difficulty': difficulty
+            'difficulty': difficulty,
+            'language': language
         })
 
         update_status(100, f"Ready! {len(segments)} sentences found.")
@@ -280,6 +293,7 @@ def get_library():
                 'thumbnail': data.get('thumbnail', ''),
                 'difficulty': data.get('difficulty', 'medium'),
                 'duration': data.get('duration', 0),
+                'language': data.get('language', 'en'),
                 'modified': cache_file.stat().st_mtime
             })
         except Exception:
@@ -377,6 +391,7 @@ def process():
     data = request.json
     url = data.get('url', '').strip()
     title = data.get('title', '').strip()  # Optional title from frontend
+    language = data.get('language', 'en')  # Source language (en, es, etc.)
 
     if not url:
         return jsonify({'error': 'URL nao fornecida'}), 400
@@ -396,17 +411,18 @@ def process():
             return jsonify({
                 'status': 'cached',
                 'episode_id': episode_id,
-                'segment_count': len(cached['segments'])
+                'segment_count': len(cached['segments']),
+                'language': cached.get('language', 'en')
             })
         else:
             # Audio doesn't exist, need to re-download
             # Start processing in background to re-download audio
-            thread = threading.Thread(target=process_podcast_async, args=(url, episode_id, title), daemon=True)
+            thread = threading.Thread(target=process_podcast_async, args=(url, episode_id, title, language), daemon=True)
             thread.start()
             return jsonify({'status': 'started', 'episode_id': episode_id, 'redownloading': True})
 
     # Start processing in background
-    thread = threading.Thread(target=process_podcast_async, args=(url, episode_id, title), daemon=True)
+    thread = threading.Thread(target=process_podcast_async, args=(url, episode_id, title, language), daemon=True)
     thread.start()
 
     return jsonify({'status': 'started', 'episode_id': episode_id})

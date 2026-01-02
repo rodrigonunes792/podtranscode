@@ -257,6 +257,12 @@
             font-weight: bold;
         }
 
+        .badge-lang-en, .badge-lang-es {
+            background: rgba(100, 100, 100, 0.2);
+            font-size: 14px;
+            padding: 2px 6px;
+        }
+
         .badge-youtube {
             background: rgba(255, 0, 0, 0.2);
             color: #ff4444;
@@ -294,6 +300,22 @@
         .search-section {
             display: flex;
             gap: 10px;
+            align-items: center;
+        }
+
+        .language-select {
+            padding: 15px 12px;
+            font-size: 14px;
+            border: none;
+            border-radius: 10px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .language-select:focus {
+            outline: 2px solid #00d4ff;
         }
 
         .search-input {
@@ -2715,6 +2737,10 @@
         <!-- Search Section -->
         <div id="searchSection" class="card" style="display: none;">
             <div class="search-section">
+                <select id="languageSelect" class="language-select">
+                    <option value="en">🇺🇸 English</option>
+                    <option value="es">🇪🇸 Spanish</option>
+                </select>
                 <input type="text" id="searchInput" class="search-input"
                        placeholder="Paste Apple Podcasts URL or search by name..."
                        value="">
@@ -3111,6 +3137,9 @@
                                 ${savedPosition > 0 ? `<div class="progress-bar-mini"><div class="progress-fill-mini" style="width: ${progressPercent}%"></div></div>` : ''}
                             </div>
                             <div class="library-item-badges">
+                                <span class="library-item-badge badge-lang-${item.language || 'en'}">
+                                    ${item.language === 'es' ? '🇪🇸' : '🇺🇸'}
+                                </span>
                                 <span class="library-item-badge badge-${item.difficulty || 'medium'}" id="badge-${item.id}">
                                     ${difficultyLabel}
                                 </span>
@@ -3405,6 +3434,9 @@
             currentEpisodeUrl = url;
             currentEpisodeTitle = title;
 
+            // Get selected language
+            const language = document.getElementById('languageSelect').value;
+
             // Hide all search-related sections
             document.getElementById('podcastInfo').classList.remove('active');
             document.getElementById('episodesSection').classList.remove('active');
@@ -3414,7 +3446,7 @@
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, title })
+                    body: JSON.stringify({ url, title, language })
                 });
 
                 const data = await response.json();
